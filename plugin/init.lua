@@ -585,18 +585,30 @@ local function detect_status(pane, agent_type, config)
     -- Check last 10 lines for working/waiting (reuse the single split)
     local recent_text = last_n_lines(lines, 10)
 
+    -- An open dialog renders at the bottom of the screen and its footer
+    -- hints (e.g. 'esc to cancel') only exist while it is open. Claude Code
+    -- keeps its working spinner ('esc to interrupt') visible behind dialogs,
+    -- so waiting must be checked BEFORE working — but only in the bottom few
+    -- lines, to avoid matching dialog text that has scrolled into history.
+    if matches_any_status(last_n_lines(lines, 8), patterns.waiting) then
+        return 'waiting'
+    end
+
     if matches_any_status(recent_text, patterns.working) then
         return 'working'
+    end
+
+    -- Check waiting before the empty-last-line idle shortcut: Claude Code's
+    -- prompt dialogs leave the last screen line blank, which was classifying
+    -- waiting agents as idle. A slightly wider window (15 lines) lets taller
+    -- dialogs still match.
+    if matches_any_status(last_n_lines(lines, 15), patterns.waiting) then
+        return 'waiting'
     end
 
     -- If last line is empty and no working indicators, likely idle
     if last_line_empty then
         return 'idle'
-    end
-
-    -- Check waiting only in recent lines (reduce false positives from scrollback)
-    if matches_any_status(recent_text, patterns.waiting) then
-        return 'waiting'
     end
 
     -- Default to idle
