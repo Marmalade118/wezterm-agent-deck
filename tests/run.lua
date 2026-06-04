@@ -425,4 +425,65 @@ runner:test('components render placeholders and badge counts', function()
     t.eq(badge_text, '1 waiting')
 end)
 
+runner:test('init detect_status: dialog footer wins over visible working spinner', function()
+    local plugin = require('init')
+
+    -- Claude Code keeps its working spinner on screen while a permission
+    -- dialog is open; the dialog footer must classify the pane as waiting.
+    local pane = {
+        get_lines_as_text = function()
+            return table.concat({
+                'Tool use: PowerShell',
+                '✳ Pondering… (esc to interrupt)',
+                'Do you want to proceed?',
+                '❯ 1. Yes',
+                '  2. No, and tell Claude what to do differently',
+                'esc to cancel',
+            }, '\n')
+        end,
+    }
+
+    local cfg = { max_lines = 100, agents = { claude = {} } }
+
+    t.eq(plugin._detect_status(pane, 'claude', cfg), 'waiting')
+end)
+
+runner:test('init detect_status: dialog with blank last line is waiting, not idle', function()
+    local plugin = require('init')
+
+    local pane = {
+        get_lines_as_text = function()
+            return table.concat({
+                'Do you want to proceed?',
+                '❯ 1. Yes',
+                '  2. No',
+                '',
+            }, '\n')
+        end,
+    }
+
+    local cfg = { max_lines = 100, agents = { claude = {} } }
+
+    t.eq(plugin._detect_status(pane, 'claude', cfg), 'waiting')
+end)
+
+runner:test('init detect_status: generic waiting tokens do not override working', function()
+    local plugin = require('init')
+
+    -- 'deny' appears in ordinary output; only dialog-footer hints may
+    -- pre-empt the working check.
+    local pane = {
+        get_lines_as_text = function()
+            return table.concat({
+                'the firewall will deny that connection',
+                '✳ Working… (esc to interrupt)',
+            }, '\n')
+        end,
+    }
+
+    local cfg = { max_lines = 100, agents = { claude = {} } }
+
+    t.eq(plugin._detect_status(pane, 'claude', cfg), 'working')
+end)
+
 runner:run()

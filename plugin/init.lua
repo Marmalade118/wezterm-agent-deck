@@ -485,6 +485,20 @@ local default_patterns = {
     idle = { '^>%s*$', '^> $', '^>$' },
 }
 
+-- Dialog-specific hints that only appear on screen while a prompt dialog is
+-- open. Used for the early waiting check that runs before the working check;
+-- deliberately excludes generic tokens ('deny', 'continue?', y/n forms) that
+-- can occur in ordinary agent output.
+local dialog_footer_patterns = {
+    'esc to cancel',
+    'yes, allow once', 'yes, allow always',
+    'do you want to proceed',
+    'approve this plan',
+    'press enter to continue',
+    'enter confirm', 'esc dismiss',
+    'type your own answer',
+}
+
 local function strip_ansi(text)
     if not text then return '' end
     local result = text
@@ -589,8 +603,10 @@ local function detect_status(pane, agent_type, config)
     -- hints (e.g. 'esc to cancel') only exist while it is open. Claude Code
     -- keeps its working spinner ('esc to interrupt') visible behind dialogs,
     -- so waiting must be checked BEFORE working — but only in the bottom few
-    -- lines, to avoid matching dialog text that has scrolled into history.
-    if matches_any_status(last_n_lines(lines, 8), patterns.waiting) then
+    -- lines and only against dialog-specific hints, to avoid generic waiting
+    -- tokens (e.g. 'deny') in ordinary output overriding a genuine working
+    -- state.
+    if matches_any_status(last_n_lines(lines, 8), dialog_footer_patterns) then
         return 'waiting'
     end
 
@@ -1189,6 +1205,8 @@ end
 -- Export for advanced users
 M.get_agent_state = get_agent_state
 M.get_all_agent_states = get_all_agent_states
+-- Exposed for tests (status detection is otherwise inline/local)
+M._detect_status = detect_status
 M.count_agents_by_status = count_agents_by_status
 M.get_config = get_config
 M.set_config = set_config

@@ -22,4 +22,21 @@ function M.format(items)
     return items
 end
 
+-- Minimal stubs so plugin/init.lua can be required under tests
+M.target_triple = 'x86_64-test'
+
+M.plugin = {
+    list = function()
+        return {}
+    end,
+}
+
+function M.emit() end
+
+M.time = {
+    now = function()
+        return os.time()
+    end,
+}
+
 return M
